@@ -1,9 +1,17 @@
-# Publica a pasta site/ como esta: e uma pagina estatica, sem build.
-#   netlify deploy --prod
+# A pasta site/ ja e o site pronto: uma pagina estatica, sem etapa de build.
+# O "command" abaixo existe so para anular qualquer comando configurado no
+# painel do Netlify -- o netlify.toml tem precedencia sobre a interface.
 [build]
   publish = "site"
+  command = "echo 'site estatico: nada a construir'"
 
 [[headers]]
   for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# o interpretador Python e baixado do jsDelivr e fica em cache no navegador
+[[headers]]
+  for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
