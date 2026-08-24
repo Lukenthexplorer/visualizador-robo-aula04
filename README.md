@@ -113,8 +113,21 @@ passam a ter a mesma assinatura e a busca descarta caminhos válidos.
 
 ## Usando o visualizador com outro problema
 
-Cole qualquer subclasse de `State` (ou `HeuristicState`). Dois ganchos opcionais deixam a
-visualização melhor:
+O visualizador não é um Python de uso geral: ele procura no código colado **uma subclasse
+concreta de `State`** e dirige a busca ele mesmo. Para funcionar, o código precisa de três
+coisas:
+
+1. Uma classe herdando de `State` ou `HeuristicState` com os cinco métodos implementados
+   (`successors`, `is_goal`, `description`, `cost`, `env`). Faltando um, o Python considera
+   a classe abstrata e ela sequer é encontrada.
+2. Um estado inicial construível: ou existe `estado_inicial()`, ou `SuaClasse("")` funciona
+   sozinho.
+3. Um `successors()` que devolva estados.
+
+O seu `main()` **não é chamado** — quem conduz a busca é a página, com o algoritmo e a poda
+escolhidos na barra de cima.
+
+Dois ganchos opcionais deixam a visualização melhor:
 
 ```python
 def estado_inicial():        # se o construtor precisar de argumentos
@@ -139,6 +152,48 @@ parâmetro `pruning`. Seus `import` funcionam sem alteração.
 Essa reimplementação foi conferida contra a `aigyminsper` instalada de verdade: mesmo
 código, seis algoritmos × duas políticas de poda, **custo e caminho idênticos nos doze
 casos**.
+
+## Limitações — o que esse Python do navegador não faz
+
+Vale saber antes de colar algo mais ambicioso.
+
+**Não é um terminal, é um executor de arquivo.** Não há REPL nem prompt, nada persiste entre
+execuções, e **`input()` não funciona** — código que peça entrada trava ou dá erro. Cada
+*Rodar* executa o texto do zero, num módulo novo.
+
+**A biblioteca é uma reimplementação, não a original.** Consequências concretas:
+
+- os parâmetros de desenho de grafo da `aigyminsper` (`trace=True`, `trace_fullscreen`,
+  `trace_display_as_states`…) caem no `**kwargs` e são **ignorados em silêncio** — você pede
+  o trace e simplesmente não aparece nada, sem aviso;
+- `ParallelSearch` e o módulo de CSP (`csp_algorithms`, `CspState`) **não foram portados**;
+  importá-los quebra;
+- a equivalência com a biblioteca real é testada, não garantida.
+
+**Só a biblioteca padrão.** `random`, `math`, `collections`, `itertools`, `json` e afins
+funcionam normalmente. `numpy`, `pandas` e companhia existiriam no Pyodide, mas a página não
+os carrega — hoje um `import numpy` falha.
+
+**Sem disco e sem rede.** O navegador não enxerga os arquivos da sua máquina: `open("dados.txt")`
+não acha nada, e `requests` não existe.
+
+**A busca é síncrona: enquanto roda, a aba congela**, e não há botão de cancelar. O campo
+*máx nós* (600 por padrão) freia a geração de nós, mas **não protege contra um laço infinito
+dentro do seu `successors()`** — nesse caso, fechar a aba.
+
+**Limites de tamanho**, todos do navegador e não da teoria: a árvore deixa de ser desenhada
+acima de ~1400 nós, e a saída do `print()` é cortada em 20 mil caracteres.
+
+**Primeira visita precisa de internet** (o interpretador vem de um CDN; depois fica em cache)
+e a página precisa ser servida por HTTP — abrir por `file://` faz o navegador bloquear o
+download do WebAssembly.
+
+**Versão:** CPython 3.13 compilado para WebAssembly. Para esse tipo de código o comportamento
+é o mesmo do Python local; recursão muito profunda é o ponto mais provável de divergir.
+
+Por fim, a amarra de fundo: a tela inteira — fronteira, poda, `env()`, g/h/f — assume o
+modelo de busca em espaço de estados. Um problema de outra natureza até *executaria*, mas não
+teria o que mostrar aqui.
 
 ## Publicando
 
