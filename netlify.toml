@@ -1,0 +1,9 @@
+# Publica a pasta site/ como esta: e uma pagina estatica, sem build.
+#   netlify deploy --prod
+[build]
+  publish = "site"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

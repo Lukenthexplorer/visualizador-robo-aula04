@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visualizador de busca — aigyminsper</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#E9EDF1; --panel:#F8FAFC; --panel-2:#DFE5EB; --sunk:#E2E7ED;
+  --ink:#131A23; --ink-2:#47545F; --ink-3:#79868F;
+  --rule:#C7D0D9; --rule-2:#AEBAC5;
+  --accent:#2B51BE; --accent-soft:#DCE4F8;
+  --ok:#146B50; --ok-soft:#CFE7DC;
+  --warn:#9A2F3B; --warn-soft:#F3DADD;
+  --tk-kw:#2B51BE; --tk-str:#146B50; --tk-com:#79868F; --tk-num:#A9601C; --tk-self:#6B4E9B;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1319; --panel:#161D25; --panel-2:#1D2731; --sunk:#111820;
+    --ink:#E7ECF2; --ink-2:#A6B3C0; --ink-3:#788593;
+    --rule:#2A3540; --rule-2:#3A4753;
+    --accent:#7FA2FF; --accent-soft:#1B2740;
+    --ok:#5AC59D; --ok-soft:#153027;
+    --warn:#E0808C; --warn-soft:#33191D;
+    --tk-kw:#7FA2FF; --tk-str:#5AC59D; --tk-com:#788593; --tk-num:#DCA063; --tk-self:#B79BE0;
+  }
+}
+/* mesma paleta escura, agora para quem escolheu escuro no botao */
+:root[data-theme="dark"]{
+  --paper:#0E1319; --panel:#161D25; --panel-2:#1D2731; --sunk:#111820;
+  --ink:#E7ECF2; --ink-2:#A6B3C0; --ink-3:#788593;
+  --rule:#2A3540; --rule-2:#3A4753;
+  --accent:#7FA2FF; --accent-soft:#1B2740;
+  --ok:#5AC59D; --ok-soft:#153027;
+  --warn:#E0808C; --warn-soft:#33191D;
+  --tk-kw:#7FA2FF; --tk-str:#5AC59D; --tk-com:#788593; --tk-num:#DCA063; --tk-self:#B79BE0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;font-size:14.5px;line-height:1.5}
+h1{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:22px;letter-spacing:-.01em;margin:0;
+  white-space:nowrap}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+button{font:inherit;color:inherit}
+
+.wrap{max-width:1600px;margin:0 auto;padding:14px 16px 40px}
+
+/* ---- barra de cima ---- */
+.top{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:10px 0 11px;
+  border-bottom:2px solid var(--ink);margin-bottom:12px;
+  position:sticky;top:0;z-index:9;background:var(--paper)}
+.top .sep{width:1px;align-self:stretch;background:var(--rule)}
+.top .grow{flex:1}
+.ctrl{display:flex;align-items:center;gap:6px}
+.ctrl > label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3)}
+select,input[type=number]{padding:5px 6px;background:var(--sunk);color:var(--ink);
+  border:1px solid var(--rule);border-radius:2px;font:inherit;font-size:12.5px}
+input[type=number]{width:62px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{padding:5px 10px;background:var(--panel);border:1px solid var(--rule-2);border-radius:2px;
+  cursor:pointer;font-size:13px;white-space:nowrap}
+.btn:hover:not([disabled]){background:var(--accent-soft);border-color:var(--accent)}
+.btn[disabled]{opacity:.35;cursor:not-allowed}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink);font-weight:500}
+.btn.primary:hover:not([disabled]){background:var(--accent);border-color:var(--accent);color:#fff}
+kbd{font-family:"IBM Plex Mono",monospace;font-size:10px;opacity:.7}
+.lema{font-size:12.5px;color:var(--ink-3)}
+.lema code{font-family:"IBM Plex Mono",monospace;font-size:11.5px}
+
+.lab{display:grid;grid-template-columns:minmax(380px,440px) minmax(0,1fr) 322px;gap:12px;
+  align-items:start}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px}
+.panel > header{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:7px 10px;border-bottom:1px solid var(--rule);background:var(--panel-2);
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-2)}
+.panel > header .etapa{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;margin-right:7px;border-radius:50%;background:var(--ink);
+  color:var(--paper);font-size:9px;letter-spacing:0}
+.panel > header .dir{color:var(--ink-3);letter-spacing:.06em;text-transform:none;
+  font-size:10.5px;text-align:right}
+.panel > .body{padding:11px}
+.stack{display:flex;flex-direction:column;gap:12px}
+
+/* ---- editor ---- */
+.ed{display:flex;height:min(56vh,540px);background:var(--sunk);overflow:hidden}
+.edwrap{position:relative;flex:1;overflow:hidden}
+.hl,#code{position:absolute;inset:0;margin:0;padding:9px 10px;border:0;
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:19px;
+  white-space:pre;tab-size:4;letter-spacing:0}
+.hl{pointer-events:none;overflow:hidden;color:var(--ink);z-index:0}
+.hl .kw{color:var(--tk-kw);font-weight:500}
+.hl .st{color:var(--tk-str)}
+.hl .cm{color:var(--tk-com);font-style:italic}
+.hl .nu{color:var(--tk-num)}
+.hl .sf{color:var(--tk-self)}
+.gut{flex:none;padding:9px 7px 9px 9px;text-align:right;color:var(--ink-3);
+  background:var(--panel-2);border-right:1px solid var(--rule);overflow:hidden;
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:19px;user-select:none}
+.gut div{white-space:pre}
+.gut div.err{color:#fff;background:var(--warn);border-radius:2px;font-weight:600;
+  margin-left:-4px;padding:0 4px}
+#code{resize:none;background:transparent;color:transparent;caret-color:var(--accent);
+  overflow:auto;z-index:1}
+#code:focus{outline:none}
+#code::selection{background:var(--accent-soft)}
+.saida{max-height:150px;overflow:auto;margin:0;padding:9px 10px;background:var(--sunk);
+  border-top:1px solid var(--rule);font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  line-height:1.5;white-space:pre-wrap;color:var(--ink-2)}
+.saida.vazia{color:var(--ink-3);font-style:italic}
+
+/* ---- avisos ---- */
+.aviso{padding:8px 10px;border:1px solid;border-radius:2px;font-size:12.5px}
+.aviso + .aviso{margin-top:8px}
+.aviso.erro{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.aviso.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.aviso pre{margin:6px 0 0;font-size:11px;line-height:1.45;max-height:190px;overflow:auto;
+  white-space:pre-wrap;font-family:"IBM Plex Mono",monospace}
+.aviso b{font-weight:600}
+
+/* ---- transporte / arvore ---- */
+.transport{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 10px;
+  border-bottom:1px solid var(--rule);background:var(--panel-2)}
+.transport .grow{flex:1}
+.tick{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3)}
+input[type=range]{accent-color:var(--accent)}
+#scrub{width:100%;display:block;margin:0}
+.scrubbar{padding:5px 10px;border-bottom:1px solid var(--rule);background:var(--panel-2)}
+.treewrap{overflow:auto;height:min(56vh,540px);background:var(--panel);
+  display:flex;justify-content:safe center;align-items:safe center}
+.treewrap svg{display:block;flex:none}
+.zoom{display:flex;align-items:center;gap:3px}
+.zoom .btn{padding:3px 7px;font-size:12px;line-height:1.2}
+.zoom .pct{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);
+  min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
+/* tela cheia: o painel da arvore ocupa a janela inteira */
+.panel:fullscreen{border-radius:0;border:0;display:flex;flex-direction:column;background:var(--panel)}
+.panel:fullscreen .treewrap{height:auto;flex:1}
+.panel:-webkit-full-screen{border-radius:0;border:0;display:flex;flex-direction:column;
+  background:var(--panel)}
+.panel:-webkit-full-screen .treewrap{height:auto;flex:1}
+.narr{padding:8px 10px;border-top:1px solid var(--rule);background:var(--panel-2);
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);
+  min-height:34px;display:flex;align-items:center;gap:8px}
+.pill{background:var(--accent);color:#fff;padding:1px 6px;border-radius:2px;font-size:10px;
+  letter-spacing:.08em;text-transform:uppercase;flex:none}
+.pill.ok{background:var(--ok)} .pill.no{background:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);
+  border-top:1px solid var(--rule)}
+.stat{background:var(--panel);padding:6px 9px}
+.stat b{display:block;font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;
+  font-variant-numeric:tabular-nums}
+.stat span{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-family:"IBM Plex Mono",monospace}
+.legend{display:flex;flex-wrap:wrap;gap:5px 13px;padding:7px 10px;border-top:1px solid var(--rule);
+  font-size:11.5px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:5px}
+.sw{width:12px;height:12px;border-radius:2px;border:1.5px solid var(--rule-2)}
+
+/* ---- laco / fronteira / inspetor ---- */
+.pcode{font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.68;
+  background:var(--sunk);border-bottom:1px solid var(--rule);overflow-x:auto}
+.pcode .ln{display:flex;gap:8px;padding:0 10px;border-left:3px solid transparent;white-space:pre}
+.pcode .ln .n{color:var(--ink-3);min-width:12px;text-align:right;user-select:none}
+.pcode .ln.on{background:var(--accent-soft);border-left-color:var(--accent)}
+.pcode .ln.dim{opacity:.33}
+.pcode .cm{color:var(--ink-3)}
+.snippet{margin:0;padding:8px 10px;background:var(--panel-2);border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-2);overflow-x:auto;
+  white-space:pre}
+.chips{display:flex;flex-wrap:wrap;gap:3px;max-height:120px;overflow:auto}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:2px 5px;border-radius:2px;
+  border:1px solid var(--rule-2);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+.chip.next{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip small{opacity:.7;margin-left:3px}
+.subhead{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 5px}
+.sep-h{height:1px;background:var(--rule);margin:11px -11px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
+.kv dt{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink-3);padding-top:2px}
+.kv dd{margin:0;font-family:"IBM Plex Mono",monospace;font-size:12px;word-break:break-all}
+pre.draw{margin:8px 0 0;padding:8px;background:var(--sunk);border:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.35;overflow-x:auto}
+.empty{font-size:12px;color:var(--ink-3);font-style:italic}
+/* ---- tela de carregamento do Python ---- */
+.boot{position:fixed;inset:0;z-index:50;background:var(--paper);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  text-align:center;padding:28px}
+.boot[hidden]{display:none}
+.boot h2{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:26px;margin:0}
+.boot p{margin:0;max-width:44ch;color:var(--ink-2);font-size:14px;line-height:1.55}
+.boot .barra{width:230px;height:3px;background:var(--panel-2);position:relative;overflow:hidden}
+.boot .barra i{position:absolute;inset:0;background:var(--accent);animation:desliza 1.1s infinite}
+@keyframes desliza{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.boot .erro{color:var(--warn);font-size:13px}
+@media (prefers-reduced-motion:reduce){.boot .barra i{animation:none}}
+.chip{transition:border-color .12s,background .12s}
+.chip:hover{border-color:var(--accent)}
+.btn{transition:background .12s,border-color .12s}
+.vazio{margin:auto;padding:22px;max-width:40ch;text-align:center;
+  color:var(--ink-3);font-size:13px;line-height:1.6}
+.vazio b{color:var(--ink-2);font-weight:500}
+/* sem isto o display do autor vence o [hidden] do navegador e o aviso, mesmo
+   "escondido", continua ocupando a caixa e empurrando a arvore para baixo */
+.vazio[hidden]{display:none}
+
+/* ---- glossario ---- */
+.gloss{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:3px}
+.gloss > summary{padding:9px 12px;cursor:pointer;list-style:none;
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-2)}
+.gloss > summary::-webkit-details-marker{display:none}
+.gloss > summary::before{content:"▸ ";color:var(--ink-3)}
+.gloss[open] > summary::before{content:"▾ "}
+.gloss > summary:hover{color:var(--accent)}
+.gdl{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:11px 22px;
+  margin:0;padding:4px 14px 16px;border-top:1px solid var(--rule);padding-top:14px}
+.gdl div{font-size:13px;color:var(--ink-2);line-height:1.5}
+.gdl b{display:block;color:var(--ink);font-weight:600;font-size:13px}
+.gdl code{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--sunk);
+  padding:1px 4px;border-radius:2px;color:var(--ink)}
+@media (max-width:1240px){.lab{grid-template-columns:1fr}.ed,.treewrap{height:46vh}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="boot" id="boot">
+  <h2>Preparando o Python</h2>
+  <div class="barra"><i></i></div>
+  <p id="bootTxt">baixando o interpretador…</p>
+  <p style="font-size:12.5px;color:var(--ink-3)">Roda inteiro no seu navegador — o código
+    colado não é enviado para servidor nenhum.</p>
+</div>
+
+<div class="wrap">
+
+<div class="top">
+  <h1>Visualizador de busca</h1>
+  <span class="lema">cole a sua subclasse de <code>State</code> e veja a busca acontecendo</span>
+  <div class="sep"></div>
+  <div class="ctrl">
+    <label for="alg">algoritmo</label>
+    <select id="alg" title="quem sai primeiro da fronteira — é só isso que muda entre eles"></select>
+  </div>
+  <div class="ctrl">
+    <label for="poda">poda</label>
+    <select id="poda" title="o que fazer com um sucessor que já foi visto (parâmetro pruning da aigyminsper)">
+      <option value="general">general — descarta env() repetido</option>
+      <option value="father-son">father-son — descarta só se for igual ao pai</option>
+      <option value="without">without — não descarta nada</option>
+    </select>
+  </div>
+  <div class="ctrl"><label for="m">limite m</label>
+    <input type="number" id="m" min="1" max="30" value="10"
+           title="profundidade máxima — só vale para as buscas limitadas"></div>
+  <div class="ctrl"><label for="max">máx nós</label>
+    <input type="number" id="max" min="50" max="5000" step="50" value="600"
+           title="freio de segurança do visualizador: para a busca depois de gerar tantos nós"></div>
+  <span class="grow"></span>
+  <button class="btn" id="bTema" title="tema claro / escuro / do sistema">◐ auto</button>
+  <button class="btn primary" id="bRodar">▶ Rodar <kbd>⌘⏎</kbd></button>
+</div>
+
+<div class="lab">
+
+  <!-- ================= editor ================= -->
+  <div class="stack">
+    <section class="panel">
+      <header>
+        <span><i class="etapa">1</i>Cole o seu código</span>
+        <button class="btn" id="bSemente" style="padding:1px 7px;font-size:11px"
+                title="descarta o que está no editor e volta ao exemplo do aspirador">restaurar exemplo</button>
+      </header>
+      <div class="ed">
+        <div class="gut" id="gut"></div>
+        <div class="edwrap">
+          <pre class="hl" id="hl" aria-hidden="true"></pre>
+          <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off"
+                    aria-label="código Python do problema de busca"></textarea>
+        </div>
+      </div>
+      <pre class="saida vazia" id="saida">saída do print() aparece aqui</pre>
+    </section>
+    <div id="avisos"></div>
+  </div>
+
+  <!-- ================= árvore ================= -->
+  <section class="panel" id="painelArvore">
+    <header>
+      <span><i class="etapa">2</i>A busca acontecendo</span>
+      <span class="dir" id="resumo">—</span>
+    </header>
+    <div class="transport">
+      <button class="btn" id="bBack" title="passo anterior (←)">‹</button>
+      <button class="btn" id="bPlay" title="rodar/pausar (espaço)">▶</button>
+      <button class="btn" id="bStep" title="próximo passo (→)">›</button>
+      <button class="btn" id="bEnd">fim ⇥</button>
+      <button class="btn" id="bZero">⟲</button>
+      <span class="grow"></span>
+      <span class="zoom">
+        <button class="btn" id="bMenos" title="afastar (−)">−</button>
+        <span class="pct" id="pct">100%</span>
+        <button class="btn" id="bMais" title="aproximar (+)">+</button>
+        <button class="btn" id="bAjustar" title="ajustar a árvore inteira à tela">⤢ ajustar</button>
+        <button class="btn" id="bTela" title="tela cheia (f)">⛶</button>
+      </span>
+      <label class="tick" for="vel">veloc.</label>
+      <input type="range" id="vel" min="0" max="6" value="3" style="width:80px">
+      <span class="tick" id="tick">0 / 0</span>
+    </div>
+    <div class="scrubbar"><input type="range" id="scrub" min="0" max="0" value="0"></div>
+    <div class="treewrap" id="treewrap">
+      <div class="vazio" id="vazio" hidden></div>
+      <svg id="tree" width="10" height="10"></svg>
+    </div>
+    <div class="narr" id="narr"><span class="pill">pronto</span> cole o código e aperte Rodar</div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--accent-soft);border-color:var(--accent)"></i> fronteira</span>
+      <span><i class="sw" style="background:var(--panel-2)"></i> expandido</span>
+      <span><i class="sw" style="border-style:dashed;background:transparent"></i> podado</span>
+      <span><i class="sw" style="background:var(--ok-soft);border-color:var(--ok)"></i> objetivo</span>
+      <span>clique num nó para inspecionar · <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom · <kbd>f</kbd> tela cheia</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sGer">0</b><span>gerados</span></div>
+      <div class="stat"><b id="sExp">0</b><span>expandidos</span></div>
+      <div class="stat"><b id="sFro">0</b><span>fronteira</span></div>
+      <div class="stat"><b id="sProf">0</b><span>profund.</span></div>
+      <div class="stat"><b id="sCusto">—</b><span>custo g</span></div>
+    </div>
+  </section>
+
+  <!-- ================= laço ================= -->
+  <div class="stack">
+    <section class="panel">
+      <header><span><i class="etapa">3</i>O laço por dentro</span><span class="dir" id="algClasse"></span></header>
+      <div class="pcode" id="pcode"></div>
+      <pre class="snippet" id="snippet"></pre>
+      <div class="body">
+        <p class="subhead">Fronteira <span id="froN"></span></p>
+        <div class="chips" id="froChips"></div>
+        <div class="sep-h"></div>
+        <p class="subhead">Nó inspecionado</p>
+        <dl class="kv" id="noBox"><dd class="empty">nenhum</dd></dl>
+        <pre class="draw" id="noDraw" hidden></pre>
+      </div>
+    </section>
+  </div>
+</div>
+
+<details class="gloss">
+  <summary>O que cada palavra dessa tela quer dizer</summary>
+  <div class="gdl">
+    <div><b>fronteira</b> A lista <code>aberta</code>: nós já gerados que ainda não foram
+      abertos. Trocar de algoritmo é só trocar quem sai daqui primeiro.</div>
+    <div><b>expandir um nó</b> Tirá-lo da fronteira, testar se é objetivo e, se não for,
+      chamar <code>successors()</code> para gerar os filhos.</div>
+    <div><b>env()</b> A assinatura de texto do estado. Dois estados com o mesmo
+      <code>env()</code> são, para a busca, o mesmo estado — por isso ele precisa conter
+      <em>tudo</em> que distingue um estado do outro.</div>
+    <div><b>poda</b> O que fazer com um sucessor já conhecido. <code>without</code>: nada,
+      a árvore repete estados sem parar. <code>father-son</code>: descarta se for igual ao pai.
+      <code>general</code>: descarta se o <code>env()</code> já apareceu antes.</div>
+    <div><b>g, h, f</b> <code>g</code> é o custo gasto até o nó; <code>h</code> é o seu palpite
+      do que ainda falta (o método <code>h()</code>); <code>f = g + h</code> é o que o A* usa
+      para escolher.</div>
+    <div><b>limite m</b> Profundidade máxima que a busca limitada aceita. Baixo demais e ela
+      devolve <code>None</code> mesmo existindo solução.</div>
+    <div><b>máx nós</b> Freio do visualizador, não da teoria: ele para de gerar depois desse
+      tanto para o navegador não travar. Bater no teto é sinal de que falta poda.</div>
+    <div><b>caixinha da árvore</b> Cada caixa é um nó, rotulada com o <code>env()</code> do
+      estado. A borda azul marca o nó que está sendo expandido agora; a seta na aresta é o
+      <code>operator</code> que gerou o filho.</div>
+  </div>
+</details>
+</div>
+
+<script>
+"use strict";
+const SEMENTE = "\"\"\"Aspirador de p\u00f3 num ambiente 2x2 \u2014 Aula 03, exerc\u00edcio 2.\n\nModelagem do espa\u00e7o de estados:\n\n    posi\u00e7\u00e3o do rob\u00f4  ->  4 possibilidades (A, B, C, D)\n    sujeira          ->  2^4 = 16 combina\u00e7\u00f5es\n    espa\u00e7o de busca  ->  4 x 16 = 64 estados\n\n    planta:   A | B        mover s\u00f3 liga quartos vizinhos:\n              -----        A-B, C-D (horizontal) e A-C, B-D (vertical)\n              C | D\n\nA sujeira fica num dicion\u00e1rio, e n\u00e3o em quatro par\u00e2metros soltos. \u00c9 o que\nimpede o erro mais comum aqui: trocar a ordem dos argumentos numa transi\u00e7\u00e3o\ne \"embaralhar\" a sujeira dos quartos sem querer.\n\nPara ver a busca passo a passo:  python3 ui.py\n\"\"\"\n\nfrom aigyminsper.search.graph import HeuristicState\nfrom aigyminsper.search.search_algorithms import BuscaLargura\n\nQUARTOS = [\"A\", \"B\", \"C\", \"D\"]\n\n# Quem faz fronteira com quem. Cada chave \u00e9 uma a\u00e7\u00e3o poss\u00edvel naquele quarto.\nVIZINHOS = {\n    \"A\": {\"MoverDireita\": \"B\", \"MoverBaixo\": \"C\"},\n    \"B\": {\"MoverEsquerda\": \"A\", \"MoverBaixo\": \"D\"},\n    \"C\": {\"MoverCima\": \"A\", \"MoverDireita\": \"D\"},\n    \"D\": {\"MoverEsquerda\": \"C\", \"MoverCima\": \"B\"},\n}\n\n# Situa\u00e7\u00e3o inicial \u2014 mexa aqui para testar outros cen\u00e1rios.\nPOSICAO_INICIAL = \"A\"\nSUJEIRA_INICIAL = {\"A\": True, \"B\": True, \"C\": True, \"D\": True}\n\n\nclass AspiradorPo(HeuristicState):\n    \"\"\"Um estado = onde o rob\u00f4 est\u00e1 + quais quartos est\u00e3o sujos.\"\"\"\n\n    def __init__(self, op, loc=POSICAO_INICIAL, sujeira=None):\n        super().__init__(op)\n        self.loc = loc\n        # dict(...) faz uma c\u00f3pia: sem isso todos os estados compartilhariam\n        # o mesmo dicion\u00e1rio e limpar um quarto limparia a \u00e1rvore inteira.\n        self.sujeira = dict(sujeira) if sujeira is not None else dict(SUJEIRA_INICIAL)\n\n    def successors(self):\n        \"\"\"Todos os estados alcan\u00e7\u00e1veis com uma \u00fanica a\u00e7\u00e3o.\"\"\"\n        filhos = []\n\n        # Mover: muda a posi\u00e7\u00e3o e nada mais \u2014 a sujeira vai igualzinha.\n        for acao, destino in VIZINHOS[self.loc].items():\n            filhos.append(AspiradorPo(acao, destino, self.sujeira))\n\n        # Aspirar: s\u00f3 existe como a\u00e7\u00e3o se o quarto atual estiver sujo.\n        if self.sujeira[self.loc]:\n            limpo = dict(self.sujeira)\n            limpo[self.loc] = False\n            filhos.append(AspiradorPo(\"Aspirar\", self.loc, limpo))\n\n        return filhos\n\n    def is_goal(self):\n        \"\"\"Objetivo = os QUATRO quartos limpos (a posi\u00e7\u00e3o do rob\u00f4 n\u00e3o importa).\"\"\"\n        return not any(self.sujeira.values())\n\n    def description(self):\n        return \"Aspirador de po - 4 quartos (2x2)\"\n\n    def cost(self):\n        \"\"\"Custo de uma a\u00e7\u00e3o. Todas custam o mesmo aqui.\"\"\"\n        return 1\n\n    def h(self):\n        \"\"\"Estimativa do que falta: um Aspirar por quarto sujo.\n\n        Nunca superestima (\u00e9 preciso pelo menos isso), ent\u00e3o \u00e9 admiss\u00edvel \u2014\n        \u00e9 o que garante que o A* devolve o caminho \u00f3timo.\n        \"\"\"\n        return sum(1 for quarto in QUARTOS if self.sujeira[quarto])\n\n    def env(self):\n        \"\"\"Assinatura \u00fanica do estado: posi\u00e7\u00e3o + sujeira dos quatro quartos.\n\n        \u00c9 por aqui que a busca reconhece que j\u00e1 passou por um estado. Se o\n        env() esquecer um quarto, dois estados diferentes viram o mesmo e a\n        poda descarta caminhos v\u00e1lidos.\n        \"\"\"\n        marcas = \"\".join(\"1\" if self.sujeira[q] else \"0\" for q in QUARTOS)\n        return f\"{self.loc}#{marcas}\"\n\n\n# --- ganchos opcionais usados pelo ui.py -----------------------------------\n\ndef estado_inicial():\n    \"\"\"Estado de onde a busca parte.\"\"\"\n    return AspiradorPo(\"\", POSICAO_INICIAL, SUJEIRA_INICIAL)\n\n\ndef desenhar(estado):\n    \"\"\"Planta do apartamento em texto: '*' = sujo, 'o' = rob\u00f4.\"\"\"\n    linhas = []\n    for esquerda, direita in ((\"A\", \"B\"), (\"C\", \"D\")):\n        linhas.append(\" \".join(\n            \"[{}{}]\".format(\"*\" if estado.sujeira[q] else \" \",\n                            \"o\" if estado.loc == q else \" \")\n            for q in (esquerda, direita)\n        ))\n    return \"\\n\".join(linhas)\n\n\n# --- execu\u00e7\u00e3o --------------------------------------------------------------\n\ndef main():\n    inicial = estado_inicial()\n    print(inicial.description())\n    print(desenhar(inicial))\n    print(f\"estado inicial: {inicial.env()}\\n\")\n\n    # pruning='general' descarta estados cujo env() j\u00e1 apareceu. Sem ele\n    # (o padr\u00e3o da biblioteca \u00e9 'without') a busca em largura reexplora os\n    # mesmos 64 estados infinitas vezes e n\u00e3o termina.\n    resultado = BuscaLargura().search(inicial, pruning=\"general\")\n\n    if resultado is None:\n        print(\"Nao achou solucao\")\n        return\n\n    plano = [acao for acao in resultado.show_path().split(\" ; \") if acao]\n    print(f\"Achou em {len(plano)} acoes, custo {resultado.g}:\")\n    for i, acao in enumerate(plano, start=1):\n        print(f\"  {i}. {acao}\")\n    print()\n    print(desenhar(resultado.state))\n\n\nif __name__ == \"__main__\":\n    main()\n";
+const MOTOR = "\"\"\"Motor do visualizador, rodando dentro do navegador via Pyodide.\n\nTraz uma reimplementacao enxuta da aigyminsper (mesma API, sem matplotlib e\nsem networkx, que nao existem no navegador), executa o codigo colado pelo\nprofessor e devolve o rastro da busca em JSON para a pagina desenhar.\n\"\"\"\n\nimport contextlib\nimport inspect\nimport io\nimport json\nimport linecache\nimport sys\nimport traceback\nimport types\nfrom abc import ABC, abstractmethod\nfrom collections import deque\nfrom uuid import uuid4\n\nARQUIVO = \"<codigo colado>\"\nLIMITE_SAIDA = 20_000\n\n\n# ===========================================================================\n# 1. aigyminsper enxuta -- mesma API da biblioteca da disciplina\n# ===========================================================================\n\nclass Node:\n    \"\"\"No da arvore de busca: um estado mais o caminho que levou ate ele.\"\"\"\n\n    def __init__(self, state, father_node):\n        self.identifier = f\"{uuid4()}\"\n        self.state = state\n        self.father_node = father_node\n        if father_node is None:\n            self.depth = 0\n            self.g = 0\n        else:\n            self.depth = father_node.depth + 1\n            self.g = state.cost() + father_node.g\n\n    def show_path(self):\n        if self.father_node is not None:\n            return self.father_node.show_path() + \" ; \" + self.state.operator\n        return self.state.operator\n\n    def h(self):\n        heuristica = getattr(self.state, \"h\", None)\n        return heuristica() if callable(heuristica) else 0\n\n    def f(self):\n        return self.g + self.h()\n\n    def get_state(self):\n        return self.state\n\n\nclass State(ABC):\n    \"\"\"Um estado do problema. Voce implementa os cinco metodos abaixo.\"\"\"\n\n    def __init__(self, operator):\n        self.operator = operator\n\n    @abstractmethod\n    def successors(self): ...\n\n    @abstractmethod\n    def is_goal(self): ...\n\n    @abstractmethod\n    def description(self): ...\n\n    @abstractmethod\n    def cost(self): ...\n\n    @abstractmethod\n    def env(self): ...\n\n    def print(self):\n        return str(self.operator)\n\n\nclass HeuristicState(State):\n    \"\"\"Estado com heuristica: exige tambem o metodo h().\"\"\"\n\n    @abstractmethod\n    def h(self): ...\n\n\ndef _aceita(novo, pai, vistos, pruning):\n    \"\"\"As tres politicas de poda da biblioteca.\"\"\"\n    if pruning == \"without\":\n        return True\n    if pruning == \"father-son\":\n        return novo.state.env() != pai.state.env()\n    if novo.state.env() in vistos:\n        return False\n    vistos.add(novo.state.env())\n    return True\n\n\nclass SearchAlgorithm(ABC):\n    @abstractmethod\n    def search(self, initial_state, /, m=None, pruning=\"without\", **kwargs): ...\n\n\nclass BuscaLargura(SearchAlgorithm):\n    def search(self, initial_state, /, m=None, pruning=\"without\", **kwargs):\n        vistos, aberta = set(), deque([Node(initial_state, None)])\n        while aberta:\n            n = aberta.popleft()\n            if n.state.is_goal():\n                return n\n            for filho in n.state.successors():\n                novo = Node(filho, n)\n                if _aceita(novo, n, vistos, pruning):\n                    aberta.append(novo)\n        return None\n\n\nclass BuscaProfundidade(SearchAlgorithm):\n    def search(self, initial_state, /, m=None, pruning=\"without\", **kwargs):\n        if m is None:\n            raise ValueError(\"Depth limit 'm' must be provided for depth-limited search.\")\n        vistos, aberta = set(), [Node(initial_state, None)]\n        while aberta:\n            n = aberta.pop()\n            if n.state.is_goal():\n                return n\n            if n.depth < m:\n                for filho in n.state.successors():\n                    novo = Node(filho, n)\n                    if _aceita(novo, n, vistos, pruning):\n                        aberta.append(novo)\n        return None\n\n\nclass BuscaProfundidadeIterativa(SearchAlgorithm):\n    def search(self, initial_state, /, m=None, pruning=\"without\", **kwargs):\n        limite = 1\n        while limite <= (m or 50):\n            achado = BuscaProfundidade().search(initial_state, m=limite, pruning=pruning)\n            if achado is not None:\n                return achado\n            limite += 1\n        return None\n\n\nclass _PorChave(SearchAlgorithm):\n    \"\"\"Base das buscas ordenadas: muda so a chave de ordenacao.\"\"\"\n\n    chave = staticmethod(lambda n: n.g)\n\n    def search(self, initial_state, /, m=None, pruning=\"without\", **kwargs):\n        vistos, aberta = set(), [Node(initial_state, None)]\n        while aberta:\n            aberta.sort(key=self.chave, reverse=True)\n            n = aberta.pop()\n            if n.state.is_goal():\n                return n\n            for filho in n.state.successors():\n                novo = Node(filho, n)\n                if _aceita(novo, n, vistos, pruning):\n                    aberta.append(novo)\n        return None\n\n\nclass BuscaCustoUniforme(_PorChave):\n    chave = staticmethod(lambda n: n.g)\n\n\nclass BuscaGananciosa(_PorChave):\n    chave = staticmethod(lambda n: n.h())\n\n\nclass AEstrela(_PorChave):\n    chave = staticmethod(lambda n: n.f())\n\n\ndef _instalar_biblioteca():\n    \"\"\"Publica tudo em sys.modules para o 'from aigyminsper...' funcionar.\"\"\"\n    pacote = types.ModuleType(\"aigyminsper\")\n    pacote.__path__ = []\n    busca = types.ModuleType(\"aigyminsper.search\")\n    busca.__path__ = []\n    grafo = types.ModuleType(\"aigyminsper.search.graph\")\n    algos = types.ModuleType(\"aigyminsper.search.search_algorithms\")\n\n    for nome, obj in ((\"Node\", Node), (\"State\", State), (\"HeuristicState\", HeuristicState)):\n        setattr(grafo, nome, obj)\n    for classe in (SearchAlgorithm, BuscaLargura, BuscaProfundidade,\n                   BuscaProfundidadeIterativa, BuscaCustoUniforme,\n                   BuscaGananciosa, AEstrela):\n        setattr(algos, classe.__name__, classe)\n\n    pacote.search = busca\n    busca.graph, busca.search_algorithms = grafo, algos\n    sys.modules.update({\n        \"aigyminsper\": pacote,\n        \"aigyminsper.search\": busca,\n        \"aigyminsper.search.graph\": grafo,\n        \"aigyminsper.search.search_algorithms\": algos,\n    })\n\n\n_instalar_biblioteca()\n\n\n# ===========================================================================\n# 2. A busca instrumentada -- um evento por acao, para a pagina reproduzir\n# ===========================================================================\n\nLIMITADOS = (\"profundidade\", \"iterativa\")\nORDENADOS = {\"custo_uniforme\": lambda n: n.g,\n             \"gananciosa\": lambda n: n.h(),\n             \"aestrela\": lambda n: n.f()}\n\n\ndef tirar(aberta, alg):\n    \"\"\"Retira um no da fronteira -- e so isso que muda de um algoritmo pro outro.\"\"\"\n    if alg == \"largura\":\n        return aberta.pop(0)                       # fila: o mais antigo\n    if alg in LIMITADOS:\n        return aberta.pop()                        # pilha: o mais recente\n    aberta.sort(key=ORDENADOS[alg], reverse=True)  # ordena e tira o menor\n    return aberta.pop()\n\n\ndef buscar(inicial, alg, poda, m, max_nos, desenhar=None):\n    nos, passos = [], []\n    estouro = False\n\n    def cadastrar(no, pai):\n        atributos = {\n            k: v if isinstance(v, (int, float, str, bool, type(None))) else str(v)\n            for k, v in vars(no.state).items() if k != \"operator\"\n        }\n        no.vid = len(nos)\n        nos.append({\n            \"id\": no.vid, \"pai\": pai.vid if pai else None,\n            \"op\": str(no.state.operator), \"env\": str(no.state.env()),\n            \"g\": no.g, \"h\": no.h(), \"f\": no.f(), \"prof\": no.depth,\n            \"attrs\": atributos,\n            \"desenho\": str(desenhar(no.state)) if desenhar else None,\n        })\n\n    def evento(tipo, linha, no=None, msg=\"\"):\n        passos.append({\"t\": tipo, \"l\": linha, \"no\": no.vid if no else None, \"msg\": msg})\n\n    solucao = None\n    erro = None\n    try:\n        limites = range(1, m + 1) if alg == \"iterativa\" else [m]\n        for limite in limites:\n            if alg == \"iterativa\":\n                evento(\"reinicia\", 1, msg=f\"nova rodada com limite m = {limite}\")\n\n            raiz = Node(inicial, None)\n            cadastrar(raiz, None)\n            aberta, vistos = [raiz], set()\n            evento(\"inicio\", 1, raiz, \"aberta = [Node(estado_inicial, None)]\")\n\n            while aberta:\n                if len(nos) >= max_nos:\n                    estouro = True\n                    evento(\"teto\", 3, msg=f\"parei em {max_nos} nos gerados\")\n                    break\n\n                n = tirar(aberta, alg)\n                evento(\"tira\", 4, n, f\"n = {n.state.env()}\")\n\n                if n.state.is_goal():\n                    evento(\"objetivo\", 5, n, \"is_goal() -> True: devolve o caminho\")\n                    caminho, atual = [], n\n                    while atual is not None:\n                        caminho.append(atual.vid)\n                        atual = atual.father_node\n                    solucao = list(reversed(caminho))\n                    break\n                evento(\"testa\", 5, n, \"is_goal() -> False\")\n\n                if alg in LIMITADOS and n.depth >= limite:\n                    evento(\"limite\", 6, n,\n                           f\"profundidade {n.depth} = limite {limite}: nao expande\")\n                    continue\n\n                for filho in n.state.successors():\n                    novo = Node(filho, n)\n                    cadastrar(novo, n)\n                    evento(\"gera\", 7, novo, f\"successors() gerou '{novo.state.operator}'\")\n\n                    env = novo.state.env()\n                    if poda == \"without\":\n                        aceita, motivo = True, \"\"\n                    elif poda == \"father-son\":\n                        aceita = env != n.state.env()\n                        motivo = \"env() igual ao do pai\"\n                    else:\n                        aceita = env not in vistos\n                        motivo = \"env() ja esta em vistos\"\n\n                    if aceita:\n                        aberta.append(novo)\n                        if poda == \"general\":\n                            vistos.add(env)\n                        evento(\"insere\", 10, novo, f\"aberta.append({env})\")\n                    else:\n                        evento(\"poda\", 9, novo, f\"podado: {motivo}\")\n\n            if solucao or estouro:\n                break\n        if solucao is None and not estouro:\n            evento(\"falha\", 11, msg=\"aberta ficou vazia: devolve None\")\n\n    except Exception:\n        erro = detalhar_erro()\n        evento(\"erro\", 0, msg=erro[\"msg\"])\n\n    return {\"nos\": nos, \"passos\": passos, \"solucao\": solucao,\n            \"erro\": erro, \"estouro\": estouro}\n\n\ndef detalhar_erro():\n    \"\"\"Empacota a excecao atual, achando a linha do codigo colado que estourou.\"\"\"\n    tipo, valor, tb = sys.exc_info()\n    linha = None\n    for quadro in traceback.extract_tb(tb):\n        if quadro.filename == ARQUIVO:\n            linha = quadro.lineno\n    if isinstance(valor, SyntaxError) and valor.filename == ARQUIVO:\n        linha = valor.lineno\n    return {\n        \"msg\": traceback.format_exception_only(tipo, valor)[-1].strip(),\n        \"trace\": \"\".join(traceback.format_exception(tipo, valor, tb)),\n        \"linha\": linha,\n    }\n\n\n# ===========================================================================\n# 3. Executar o codigo colado\n# ===========================================================================\n\ndef modulo_do_codigo(fonte, nome=\"problema_colado\"):\n    modulo = types.ModuleType(nome)\n    modulo.__file__ = ARQUIVO\n    linecache.cache[ARQUIVO] = (len(fonte), None, fonte.splitlines(True), ARQUIVO)\n    sys.modules[nome] = modulo\n    exec(compile(fonte, ARQUIVO, \"exec\"), modulo.__dict__)\n    return modulo\n\n\ndef achar_classe(modulo):\n    candidatas = [\n        obj for _, obj in inspect.getmembers(modulo, inspect.isclass)\n        if issubclass(obj, State) and obj.__module__ == modulo.__name__\n        and not inspect.isabstract(obj)\n    ]\n    if not candidatas:\n        raise TypeError(\n            \"nao achei nenhuma subclasse concreta de State no codigo. \"\n            \"Faltou herdar de State/HeuristicState, ou faltou implementar algum \"\n            \"metodo abstrato (successors, is_goal, description, cost, env)?\"\n        )\n    return candidatas[-1]\n\n\ndef criar_estado(modulo, classe):\n    fabrica = getattr(modulo, \"estado_inicial\", None)\n    if callable(fabrica):\n        return fabrica()\n    try:\n        return classe(\"\")\n    except TypeError as erro:\n        raise TypeError(\n            f\"{classe.__name__}('') nao funciona ({erro}). Defina no seu codigo:\\n\\n\"\n            f\"    def estado_inicial():\\n\"\n            f\"        return {classe.__name__}('', ...)\\n\"\n        ) from erro\n\n\ndef visualizar(codigo, alg=\"largura\", poda=\"general\", m=10, max_nos=600):\n    \"\"\"Ponto de entrada chamado pela pagina. Devolve JSON, nunca levanta excecao.\"\"\"\n    vazio = {\"info\": None, \"nos\": [], \"passos\": [], \"solucao\": None, \"estouro\": False}\n    saida = io.StringIO()\n    try:\n        with contextlib.redirect_stdout(saida):\n            modulo = modulo_do_codigo(codigo)\n            classe = achar_classe(modulo)\n            inicial = criar_estado(modulo, classe)\n            desenhar = getattr(modulo, \"desenhar\", None)\n            desenhar = desenhar if callable(desenhar) else None\n            info = {\n                \"classe\": classe.__name__,\n                \"descricao\": str(inicial.description()),\n                \"env_inicial\": str(inicial.env()),\n                \"tem_h\": callable(getattr(inicial, \"h\", None)),\n                \"desenho\": desenhar is not None,\n            }\n    except Exception:\n        return json.dumps({**vazio, \"erro\": detalhar_erro(),\n                           \"saida\": saida.getvalue()[:LIMITE_SAIDA]})\n\n    with contextlib.redirect_stdout(saida):\n        resultado = buscar(inicial, alg, poda, m, max_nos, desenhar)\n    resultado[\"info\"] = info\n    resultado[\"saida\"] = saida.getvalue()[:LIMITE_SAIDA]\n    return json.dumps(resultado)\n";
+let visualizar = null;   // preenchido quando o Python terminar de carregar
+const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+const ALGS = {
+  largura:        {rotulo:"largura (BFS)",     classe:"BuscaLargura",               limitado:false},
+  profundidade:   {rotulo:"profundidade",      classe:"BuscaProfundidade",          limitado:true},
+  iterativa:      {rotulo:"iterativo",         classe:"BuscaProfundidadeIterativa", limitado:true},
+  custo_uniforme: {rotulo:"custo uniforme",    classe:"BuscaCustoUniforme",         limitado:false},
+  gananciosa:     {rotulo:"gananciosa (h)",    classe:"BuscaGananciosa",            limitado:false},
+  aestrela:       {rotulo:"A* (g+h)",          classe:"AEstrela",                   limitado:false},
+};
+$("alg").innerHTML = Object.entries(ALGS)
+  .map(([k,v]) => `<option value="${k}">${v.rotulo}</option>`).join("");
+
+/* ===================== tema ===================== */
+const TEMAS = {auto:"◐ auto", light:"☀ claro", dark:"☾ escuro"};
+function aplicarTema(t){
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  $("bTema").textContent = TEMAS[t];
+  try { localStorage.setItem("tema", t); } catch (e) { /* modo privado */ }
+}
+let tema = "auto";
+try { tema = localStorage.getItem("tema") || "auto"; } catch (e) { /* modo privado */ }
+aplicarTema(tema);
+$("bTema").onclick = () => {
+  const ordem = ["auto", "light", "dark"];
+  tema = ordem[(ordem.indexOf(tema) + 1) % 3];
+  aplicarTema(tema);
+};
+
+/* ===================== editor ===================== */
+const code = $("code");
+const PALAVRAS = /^(False|None|True|and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)$/;
+/* um realce simples: comentario, string, palavra-chave, numero, self/cls */
+const TOKENS = /(#[^\n]*)|('''[\s\S]*?'''|"""[\s\S]*?"""|[rbfu]{0,2}'(?:\\.|[^'\\\n])*'|[rbfu]{0,2}"(?:\\.|[^"\\\n])*")|\b(\w+)\b/g;
+function realcar(fonte){
+  return esc(fonte).replace(TOKENS, (tudo, com, str, pal) => {
+    if (com) return `<span class="cm">${com}</span>`;
+    if (str) return `<span class="st">${str}</span>`;
+    if (PALAVRAS.test(pal)) return `<span class="kw">${pal}</span>`;
+    if (pal === "self" || pal === "cls") return `<span class="sf">${pal}</span>`;
+    if (/^\d/.test(pal)) return `<span class="nu">${pal}</span>`;
+    return tudo;
+  });
+}
+function numerar(erroLinha){
+  const linhas = code.value.split("\n");
+  let g = "";
+  for (let i = 1; i <= linhas.length; i++)
+    g += `<div${i === erroLinha ? ' class="err"' : ""}>${i}</div>`;
+  $("gut").innerHTML = g;
+  $("hl").innerHTML = realcar(code.value) + "\n";   // \n final mantém a altura alinhada
+  sincronizar();
+}
+function sincronizar(){
+  $("gut").scrollTop = code.scrollTop;
+  $("hl").scrollTop = code.scrollTop;
+  $("hl").scrollLeft = code.scrollLeft;
+}
+code.addEventListener("input", () => numerar());
+code.addEventListener("scroll", sincronizar);
+code.addEventListener("keydown", ev => {
+  if (ev.key === "Tab"){                       // Tab digita 4 espaços
+    ev.preventDefault();
+    const a = code.selectionStart, b = code.selectionEnd;
+    code.setRangeText("    ", a, b, "end");
+    numerar();
+  }
+});
+function irParaLinha(n){
+  if (!n) return;
+  const alt = parseFloat(getComputedStyle(code).lineHeight) || 19;
+  code.scrollTop = Math.max(0, (n - 4) * alt);
+  $("gut").scrollTop = code.scrollTop;
+}
+code.value = SEMENTE;
+numerar();
+$("bSemente").onclick = () => { code.value = SEMENTE; numerar(); rodar(); };
+
+/* ===================== reprodução do rastro ===================== */
+let T = null, k = 0, sel = null, timer = null;
+let ZOOM = 1, ARV_W = 10, ARV_H = 10;      // tamanho intrínseco da árvore em px
+const V = {status:new Map(), fronteira:[], visiveis:new Set(), atual:null, raiz:null, exp:0};
+
+function zerar(){
+  V.status.clear(); V.fronteira = []; V.visiveis.clear();
+  V.atual = null; V.raiz = null; V.exp = 0;
+}
+function aplicar(e){
+  const id = e.no;
+  switch(e.t){
+    case "inicio":   zerar(); V.raiz = id; V.visiveis.add(id);
+                     V.fronteira = [id]; V.status.set(id,"fronteira"); break;
+    case "tira":     V.fronteira = V.fronteira.filter(x => x !== id);
+                     V.status.set(id,"expandido"); V.atual = id; V.exp++; break;
+    case "objetivo": V.status.set(id,"objetivo"); V.atual = id; break;
+    case "gera":     V.visiveis.add(id); V.status.set(id,"gerado"); break;
+    case "insere":   V.fronteira.push(id); V.status.set(id,"fronteira"); break;
+    case "poda":     V.status.set(id,"podado"); break;
+  }
+}
+function irPara(n){
+  n = Math.max(0, Math.min(n, T ? T.passos.length : 0));
+  if (n < k){ zerar(); k = 0; }
+  while (k < n) aplicar(T.passos[k++]);
+  desenhar();
+}
+
+/* ===================== árvore ===================== */
+const chave = alg => alg === "custo_uniforme" ? "g" : alg === "gananciosa" ? "h"
+                   : alg === "aestrela" ? "f" : null;
+/* o caminho verde só aparece depois que a busca chega nele -- sem spoiler */
+const achou = () => !!(T && T.solucao && V.status.get(T.solucao.at(-1)) === "objetivo");
+
+function layout(){
+  const filhos = new Map();
+  for (const id of V.visiveis){
+    const p = T.nos[id].pai;
+    if (p !== null && V.visiveis.has(p)){
+      if (!filhos.has(p)) filhos.set(p, []);
+      filhos.get(p).push(id);
+    }
+  }
+  const col = new Map();
+  let livre = 0;
+  const pilha = [[V.raiz, false]];
+  while (pilha.length){                        // pós-ordem iterativo
+    const [id, visto] = pilha.pop();
+    const fs = filhos.get(id) || [];
+    if (!visto && fs.length){
+      pilha.push([id, true]);
+      for (let i = fs.length - 1; i >= 0; i--) pilha.push([fs[i], false]);
+    } else if (!fs.length){
+      col.set(id, livre++);
+    } else {
+      const xs = fs.map(f => col.get(f));
+      col.set(id, (Math.min(...xs) + Math.max(...xs)) / 2);
+    }
+  }
+  return col;
+}
+
+function mostrarVazio(html){
+  $("vazio").hidden = !html;
+  $("vazio").innerHTML = html || "";
+  $("tree").style.display = html ? "none" : "block";
+}
+function desenharArvore(){
+  const svg = $("tree");
+  if (!T || V.raiz === null || !V.visiveis.size){
+    svg.innerHTML = "";
+    mostrarVazio(!T ? "carregando…"
+      : T.erro ? "<div>A busca não chegou a começar.<br><b>Corrija o erro apontado no editor</b> e aperte Rodar.</div>"
+      : "<div>Nenhum nó ainda.<br>Aperte <b>▶</b> para ver a busca acontecer.</div>");
+    return;
+  }
+  mostrarVazio("");
+  if (V.visiveis.size > 1400){
+    svg.setAttribute("width", 680); svg.setAttribute("height", 44);
+    svg.innerHTML = `<text x="14" y="26" font-family="IBM Plex Mono, monospace" font-size="13"
+      fill="var(--warn)">${V.visiveis.size} nós: grande demais para desenhar. Reduza "máx nós".</text>`;
+    return;
+  }
+  const col = layout();
+  let maxLen = 4;
+  for (const id of V.visiveis) maxLen = Math.max(maxLen, T.nos[id].env.length);
+  const W = Math.min(150, Math.max(56, maxLen * 7.6 + 12)), H = 24, GX = 12, GY = 58, PAD = 20;
+  const kk = chave(T.alg);
+  const X = id => PAD + col.get(id) * (W + GX);
+  const Y = id => PAD + T.nos[id].prof * GY;
+  const naSol = new Set(achou() ? T.solucao : []);
+
+  let maxC = 0, maxP = 0;
+  for (const id of V.visiveis){
+    maxC = Math.max(maxC, col.get(id)); maxP = Math.max(maxP, T.nos[id].prof);
+  }
+
+  let arestas = "", caixas = "";
+  for (const id of V.visiveis){
+    const n = T.nos[id];
+    if (n.pai === null || !V.visiveis.has(n.pai)) continue;
+    const x1 = X(n.pai) + W/2, y1 = Y(n.pai) + H, x2 = X(id) + W/2, y2 = Y(id), my = (y1+y2)/2;
+    const sol = naSol.has(id) && naSol.has(n.pai), podado = V.status.get(id) === "podado";
+    arestas += `<path d="M${x1} ${y1}V${my}H${x2}V${y2}" fill="none" stroke="${
+      sol ? "var(--ok)" : podado ? "var(--rule)" : "var(--rule-2)"}" stroke-width="${sol?2.4:1.2}"${
+      podado ? ' stroke-dasharray="3 3"' : ""}/>`;
+    arestas += `<text x="${x2+4}" y="${my+11}" font-family="IBM Plex Mono, monospace" font-size="10.5"
+      fill="${sol ? "var(--ok)" : "var(--ink-3)"}">${esc(n.op)}</text>`;
+  }
+  const ESTILO = {
+    fronteira:{f:"var(--accent-soft)", s:"var(--accent)", w:1.5, d:""},
+    expandido:{f:"var(--panel-2)",     s:"var(--rule-2)", w:1,   d:""},
+    objetivo: {f:"var(--ok-soft)",     s:"var(--ok)",     w:2,   d:""},
+    podado:   {f:"transparent",        s:"var(--rule-2)", w:1,   d:"3 3"},
+    gerado:   {f:"transparent",        s:"var(--rule-2)", w:1,   d:""},
+  };
+  for (const id of V.visiveis){
+    const n = T.nos[id], e = ESTILO[V.status.get(id) || "gerado"];
+    const x = X(id), y = Y(id);
+    const cabe = Math.floor((W - 12) / 7.6);
+    const rot = n.env.length > cabe ? n.env.slice(0, cabe - 1) + "…" : n.env;
+    caixas += `<g data-no="${id}" style="cursor:pointer">`;
+    if (id === V.atual)
+      caixas += `<rect x="${x-3}" y="${y-3}" width="${W+6}" height="${H+6}" rx="3" fill="none"
+        stroke="var(--accent)" stroke-width="2"/>`;
+    caixas += `<rect x="${x}" y="${y}" width="${W}" height="${H}" rx="2" fill="${e.f}"
+      stroke="${e.s}" stroke-width="${e.w}"${e.d ? ` stroke-dasharray="${e.d}"` : ""}/>`;
+    caixas += `<text x="${x+W/2}" y="${y+16}" text-anchor="middle"
+      font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink)">${esc(rot)}</text>`;
+    if (kk) caixas += `<text x="${x+W/2}" y="${y+H+11}" text-anchor="middle"
+      font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--ink-3)">${kk}=${n[kk]}</text>`;
+    caixas += `<title>${esc(n.env)}\nop: ${esc(n.op)} · g=${n.g} h=${n.h} f=${n.f} prof=${n.prof}</title></g>`;
+  }
+  ARV_W = PAD*2 + maxC*(W+GX) + W;
+  ARV_H = PAD*2 + maxP*GY + H + 14;
+  svg.setAttribute("viewBox", `0 0 ${ARV_W} ${ARV_H}`);   // o zoom é só escala do viewBox
+  svg.setAttribute("width",  ARV_W * ZOOM);
+  svg.setAttribute("height", ARV_H * ZOOM);
+  svg.innerHTML = arestas + caixas;
+  $("pct").textContent = Math.round(ZOOM * 100) + "%";
+
+  if (V.atual !== null && V.visiveis.has(V.atual))
+    seguirNo((X(V.atual) + W/2) * ZOOM, (Y(V.atual) + H/2) * ZOOM);
+}
+
+/* Mantem o no atual na regiao central da caixa. So rola quando ele sai dessa
+   zona, e ai recentra -- assim a arvore nao foge para baixo conforme aprofunda. */
+function seguirNo(cx, cy){
+  const wrap = $("treewrap");
+  const zonaX = wrap.clientWidth  * 0.3, zonaY = wrap.clientHeight * 0.3;
+  const preso = (v, max) => Math.max(0, Math.min(v, max));
+  if (cx < wrap.scrollLeft + zonaX || cx > wrap.scrollLeft + wrap.clientWidth - zonaX)
+    wrap.scrollLeft = preso(cx - wrap.clientWidth / 2, wrap.scrollWidth - wrap.clientWidth);
+  if (cy < wrap.scrollTop + zonaY || cy > wrap.scrollTop + wrap.clientHeight - zonaY)
+    wrap.scrollTop = preso(cy - wrap.clientHeight / 2, wrap.scrollHeight - wrap.clientHeight);
+}
+
+/* ---- zoom e tela cheia ---- */
+const limitar = z => Math.min(3, Math.max(0.08, z));
+function zoomar(z){ ZOOM = limitar(z); desenharArvore(); }
+function ajustar(){                       // encolhe até a árvore inteira caber
+  const wrap = $("treewrap");
+  if (!ARV_W || !ARV_H) return;
+  zoomar(Math.min(1, (wrap.clientWidth - 8) / ARV_W, (wrap.clientHeight - 8) / ARV_H));
+}
+function telaCheia(){
+  const alvo = $("painelArvore");
+  const atual = document.fullscreenElement || document.webkitFullscreenElement;
+  if (atual){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    (alvo.requestFullscreen || alvo.webkitRequestFullscreen).call(alvo);
+  }
+}
+for (const ev of ["fullscreenchange", "webkitfullscreenchange"])
+  document.addEventListener(ev, () => {
+    const cheia = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    $("bTela").textContent = cheia ? "⛶ sair" : "⛶";
+    setTimeout(ajustar, 60);              // espera a janela reflowar
+  });
+
+/* ===================== código do algoritmo ===================== */
+function linhasCodigo(){
+  const alg = T ? T.alg : $("alg").value, poda = T ? T.poda : $("poda").value;
+  const pop = {
+    largura:        ["aberta.pop(0)", "# fila: o mais antigo"],
+    profundidade:   ["aberta.pop()", "# pilha: o mais recente"],
+    iterativa:      ["aberta.pop()", "# pilha: o mais recente"],
+    custo_uniforme: ["min(aberta, key=g)", "# menor custo acumulado"],
+    gananciosa:     ["min(aberta, key=h)", "# menor palpite"],
+    aestrela:       ["min(aberta, key=f)", "# menor f = g + h"],
+  }[alg];
+  const cond = {
+    "without":    ["True", "# pruning='without'"],
+    "father-son": ["novo.env() != n.env()", "# pruning='father-son'"],
+    "general":    ["novo.env() not in vistos", "# pruning='general'"],
+  }[poda];
+  const lim = ALGS[alg].limitado;
+  return [
+    [1,  "aberta = [Node(inicial, None)]", ""],
+    [2,  "vistos = set()", ""],
+    [3,  "while aberta:", ""],
+    [4,  "    n = " + pop[0], pop[1]],
+    [5,  "    if n.state.is_goal(): return n", ""],
+    [6,  "    if n.depth < m:", lim ? "" : "# (só nas limitadas)", !lim],
+    [7,  "        for i in n.state.successors():", ""],
+    [8,  "            novo = Node(i, n)", ""],
+    [9,  "            if " + cond[0] + ":", cond[1]],
+    [10, "                aberta.append(novo)", poda === "general" ? "; vistos.add(env)" : ""],
+    [11, "return None", ""],
+  ];
+}
+function desenharCodigo(){
+  const ativa = (T && k > 0) ? T.passos[k-1].l : -1;
+  $("pcode").innerHTML = linhasCodigo().map(([n, txt, cm, dim]) =>
+    `<div class="ln${n === ativa ? " on" : ""}${dim ? " dim" : ""}"><span class="n">${n}</span><span>${
+      esc(txt)}${cm ? ` <span class="cm">${esc(cm)}</span>` : ""}</span></div>`).join("");
+  const alg = T ? T.alg : $("alg").value, poda = T ? T.poda : $("poda").value, A = ALGS[alg];
+  $("algClasse").textContent = A.classe;
+  $("snippet").textContent = `# no seu main():\n${A.classe}().search(estado_inicial, ` +
+    (alg === "profundidade" ? `m=${$("m").value}, ` : "") + `pruning='${poda}')`;
+}
+
+/* ===================== painéis ===================== */
+function desenharFronteira(){
+  const kk = T ? chave(T.alg) : null;
+  const lista = V.fronteira.slice();
+  if (kk) lista.sort((a,b) => T.nos[a][kk] - T.nos[b][kk]);   // igual ao sort() da lib
+  $("froN").textContent = `(${lista.length})`;
+  $("froChips").innerHTML = lista.length === 0
+    ? '<span class="empty">vazia</span>'
+    : lista.map((id,i) => `<span class="chip${i===0?" next":""}" data-no="${id}">${
+        esc(T.nos[id].env)}${kk ? `<small>${kk}${T.nos[id][kk]}</small>` : ""}</span>`).join("");
+}
+function desenharNo(){
+  const id = sel !== null ? sel : V.atual;
+  const box = $("noBox"), draw = $("noDraw");
+  if (id === null || id === undefined || !T){
+    box.innerHTML = '<dd class="empty">nenhum</dd>'; draw.hidden = true; return;
+  }
+  const n = T.nos[id];
+  const linhas = [["env()", n.env], ["operator", n.op || "(raiz)"],
+                  ["g / h / f", `${n.g} / ${n.h} / ${n.f}`], ["profundidade", n.prof]];
+  for (const [a, b] of Object.entries(n.attrs)) linhas.push([a, b]);
+  box.innerHTML = linhas.map(([a,b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("");
+  if (n.desenho){ draw.textContent = n.desenho; draw.hidden = false; } else draw.hidden = true;
+}
+const ROTULO = {inicio:"início", tira:"retira", testa:"testa", objetivo:"achou", gera:"gera",
+                insere:"insere", poda:"poda", limite:"limite", teto:"teto", falha:"falha",
+                erro:"erro", reinicia:"nova rodada"};
+function desenharBarra(){
+  const total = T ? T.passos.length : 0;
+  $("tick").textContent = `${k} / ${total}`;
+  $("scrub").max = total; $("scrub").value = k;
+  const e = (T && k > 0) ? T.passos[k-1] : null;
+  const cls = e && e.t === "objetivo" ? " ok" : e && (e.t === "erro" || e.t === "falha") ? " no" : "";
+  $("narr").innerHTML = e
+    ? `<span class="pill${cls}">${ROTULO[e.t] || e.t}</span> ${esc(e.msg)}`
+    : '<span class="pill">pronto</span> use ← → ou espaço';
+  $("sGer").textContent = V.visiveis.size;
+  $("sExp").textContent = V.exp;
+  $("sFro").textContent = V.fronteira.length;
+  $("sProf").textContent = V.atual !== null && T ? T.nos[V.atual].prof : 0;
+  $("sCusto").textContent = achou() ? T.nos[T.solucao.at(-1)].g : "—";
+  $("bBack").disabled = k === 0;
+  $("bStep").disabled = !T || k >= T.passos.length;
+  $("bEnd").disabled = $("bStep").disabled;
+}
+function desenharResumo(){
+  if (!T){ $("resumo").textContent = "—"; return; }
+  const A = ALGS[T.alg];
+  $("resumo").textContent = T.info
+    ? `${T.info.classe} · ${A.rotulo} · poda ${T.poda} · ${T.nos.length} nós`
+    : `${A.rotulo} · poda ${T.poda}`;
+}
+function desenhar(){
+  desenharArvore(); desenharCodigo(); desenharFronteira(); desenharNo();
+  desenharBarra(); desenharResumo();
+}
+
+/* ===================== rodar o código ===================== */
+async function rodar(){
+  if (!visualizar) return;                          // Python ainda carregando
+  parar();
+  $("bRodar").disabled = true;
+  const antes = $("bRodar").innerHTML;
+  $("bRodar").textContent = "rodando…";
+  let dados;
+  try {
+    await new Promise(r => setTimeout(r, 0));       // deixa o botão repintar antes de travar
+    dados = JSON.parse(visualizar(code.value, $("alg").value, $("poda").value,
+                                  +$("m").value, +$("max").value));
+  } catch (e) {
+    dados = {erro:{msg:"o Python parou de responder: " + e.message, trace:String(e), linha:null},
+             nos:[], passos:[], solucao:null, estouro:false, info:null, saida:""};
+  }
+  $("bRodar").disabled = false; $("bRodar").innerHTML = antes;
+
+  T = dados;
+  T.alg = $("alg").value; T.poda = $("poda").value;
+  sel = null; zerar(); k = 0;
+
+  const saida = $("saida");
+  saida.textContent = T.saida ? T.saida : "saída do print() aparece aqui";
+  saida.classList.toggle("vazia", !T.saida);
+
+  const av = [];
+  if (T.erro){
+    av.push(`<div class="aviso erro"><b>Seu código levantou uma exceção${
+      T.erro.linha ? " na linha " + T.erro.linha : ""}.</b> ${
+      T.nos.length ? "A árvore mostra até onde a busca chegou." : ""}
+      <pre>${esc(T.erro.trace || T.erro.msg)}</pre></div>`);
+    numerar(T.erro.linha); irParaLinha(T.erro.linha);
+  } else {
+    numerar();
+  }
+  if (T.estouro) av.push(`<div class="aviso erro">Parei em ${$("max").value} nós gerados.
+    Sem poda a árvore não termina em tempo útil — é por isso que <code>env()</code> existe.
+    Tente <b>poda general</b>.</div>`);
+  if (T.info && !T.info.tem_h && (T.alg === "gananciosa" || T.alg === "aestrela"))
+    av.push(`<div class="aviso erro">Sua classe não define <code>h()</code>, então
+    <code>Node.h()</code> devolve 0 e este algoritmo vira custo uniforme.
+    Herde de <code>HeuristicState</code> e implemente <code>h()</code>.</div>`);
+  if (T.solucao) av.push(`<div class="aviso ok"><b>${T.info.classe}</b> —
+    ${T.info.descricao}. Achou em ${T.solucao.length-1} ações, custo
+    ${T.nos[T.solucao.at(-1)].g}, expandindo ${T.passos.filter(p=>p.t==="tira").length} nós.</div>`);
+  if (!T.erro && !T.solucao && !T.estouro && T.passos.length)
+    av.push(`<div class="aviso erro">A fronteira esvaziou sem achar o objetivo.
+    ${ALGS[T.alg].limitado ? "O limite <code>m</code> pode estar baixo demais." : ""}</div>`);
+  $("avisos").innerHTML = av.join("");
+
+  // avança até logo depois do "inicio", para a raiz já aparecer na tela
+  const inicio = T.passos.findIndex(p => p.t === "inicio");
+  irPara(inicio >= 0 ? inicio + 1 : 0);
+  ajustar();
+}
+
+/* ===================== transporte ===================== */
+const DELAY = [800, 480, 280, 150, 80, 40, 12];
+function parar(){ if (timer){ clearInterval(timer); timer = null; $("bPlay").textContent = "▶"; } }
+$("bPlay").onclick = () => {
+  if (timer) return parar();
+  if (!T || !T.passos.length) return;
+  if (k >= T.passos.length) irPara(0);
+  $("bPlay").textContent = "❚❚";
+  timer = setInterval(() => {
+    if (!T || k >= T.passos.length) return parar();
+    irPara(k + 1);
+  }, DELAY[+$("vel").value]);
+};
+$("vel").oninput  = () => { if (timer){ parar(); $("bPlay").click(); } };
+$("bStep").onclick = () => { parar(); irPara(k + 1); };
+$("bBack").onclick = () => { parar(); irPara(k - 1); };
+$("bZero").onclick = () => { parar(); sel = null; irPara(0); };
+$("bEnd").onclick  = () => { parar(); irPara(T ? T.passos.length : 0); };
+$("scrub").oninput = () => { parar(); irPara(+$("scrub").value); };
+$("bMais").onclick    = () => zoomar(ZOOM * 1.25);
+$("bMenos").onclick   = () => zoomar(ZOOM / 1.25);
+$("bAjustar").onclick = ajustar;
+$("bTela").onclick    = telaCheia;
+$("treewrap").addEventListener("wheel", ev => {      // ctrl/⌘ + roda = zoom
+  if (!ev.ctrlKey && !ev.metaKey) return;
+  ev.preventDefault();
+  zoomar(ZOOM * (ev.deltaY < 0 ? 1.1 : 1/1.1));
+}, {passive:false});
+$("bRodar").onclick = rodar;
+$("alg").onchange = () => { $("m").disabled = !ALGS[$("alg").value].limitado; rodar(); };
+$("poda").onchange = rodar;
+for (const id of ["m", "max"]) $(id).onchange = rodar;
+
+document.addEventListener("click", ev => {
+  const alvo = ev.target.closest("[data-no]");
+  if (alvo){ sel = +alvo.dataset.no; desenharNo(); }
+});
+document.addEventListener("keydown", ev => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter"){ ev.preventDefault(); rodar(); return; }
+  if (ev.target.matches("textarea, input, select")) return;
+  if (ev.key === "ArrowRight"){ ev.preventDefault(); $("bStep").click(); }
+  if (ev.key === "ArrowLeft"){ ev.preventDefault(); $("bBack").click(); }
+  if (ev.key === " "){ ev.preventDefault(); $("bPlay").click(); }
+  if (ev.key === "+" || ev.key === "="){ ev.preventDefault(); zoomar(ZOOM * 1.25); }
+  if (ev.key === "-"){ ev.preventDefault(); zoomar(ZOOM / 1.25); }
+  if (ev.key === "0"){ ev.preventDefault(); ajustar(); }
+  if (ev.key === "f"){ ev.preventDefault(); telaCheia(); }
+});
+
+$("m").disabled = !ALGS[$("alg").value].limitado;
+
+/* ===================== ligar o Python ===================== */
+(async function iniciar(){
+  const diz = t => { $("bootTxt").textContent = t; };
+  try {
+    diz("baixando o interpretador (~10 MB, só na primeira visita)…");
+    const py = await loadPyodide({indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"});
+    diz("montando a aigyminsper…");
+    py.runPython(MOTOR);
+    visualizar = py.globals.get("visualizar");
+    $("boot").hidden = true;
+    rodar();
+  } catch (e) {
+    diz("");
+    $("boot").insertAdjacentHTML("beforeend",
+      `<p class="erro">Não consegui carregar o Python: ${e.message}.<br>
+       Confira a conexão e recarregue a página.</p>`);
+  }
+})();
+</script>
+</body>
+</html>
