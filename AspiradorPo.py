@@ -14,7 +14,7 @@ A sujeira fica num dicionário, e não em quatro parâmetros soltos. É o que
 impede o erro mais comum aqui: trocar a ordem dos argumentos numa transição
 e "embaralhar" a sujeira dos quartos sem querer.
 
-Para ver a busca passo a passo:  python3 ui.py
+Para ver a busca passo a passo, abra o visualizador em site/index.html
 """
 
 from aigyminsper.search.graph import HeuristicState
@@ -91,7 +91,7 @@ class AspiradorPo(HeuristicState):
         return f"{self.loc}#{marcas}"
 
 
-# --- ganchos opcionais usados pelo ui.py -----------------------------------
+# --- ganchos opcionais usados pelo visualizador ----------------------------
 
 def estado_inicial():
     """Estado de onde a busca parte."""
