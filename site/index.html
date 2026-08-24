@@ -150,7 +150,7 @@ input[type=range]{accent-color:var(--accent)}
 .pill{background:var(--accent);color:#fff;padding:1px 6px;border-radius:2px;font-size:10px;
   letter-spacing:.08em;text-transform:uppercase;flex:none}
 .pill.ok{background:var(--ok)} .pill.no{background:var(--warn)}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--rule);
   border-top:1px solid var(--rule)}
 .stat{background:var(--panel);padding:6px 9px}
 .stat b{display:block;font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;
@@ -161,6 +161,10 @@ input[type=range]{accent-color:var(--accent)}
   font-size:11.5px;color:var(--ink-2)}
 .legend span{display:flex;align-items:center;gap:5px}
 .sw{width:12px;height:12px;border-radius:2px;border:1.5px solid var(--rule-2)}
+.legend .opc{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);
+  padding:1px 6px;border:1px solid var(--rule-2);border-radius:2px}
+.legend .opc:hover{border-color:var(--accent)}
+.legend .opc input{accent-color:var(--accent);margin:0}
 
 /* ---- laco / fronteira / inspetor ---- */
 .pcode{font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.68;
@@ -324,10 +328,13 @@ pre.draw{margin:8px 0 0;padding:8px;background:var(--sunk);border:1px solid var(
       <span><i class="sw" style="background:var(--panel-2)"></i> expandido</span>
       <span><i class="sw" style="border-style:dashed;background:transparent"></i> podado</span>
       <span><i class="sw" style="background:var(--ok-soft);border-color:var(--ok)"></i> objetivo</span>
+      <label class="opc" title="mostra um nó por env(): some a repetição que a poda descartou">
+        <input type="checkbox" id="soDistintos"> só estados distintos</label>
       <span>clique num nó para inspecionar · <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom · <kbd>f</kbd> tela cheia</span>
     </div>
     <div class="stats">
       <div class="stat"><b id="sGer">0</b><span>gerados</span></div>
+      <div class="stat"><b id="sDist">0</b><span>estados</span></div>
       <div class="stat"><b id="sExp">0</b><span>expandidos</span></div>
       <div class="stat"><b id="sFro">0</b><span>fronteira</span></div>
       <div class="stat"><b id="sProf">0</b><span>profund.</span></div>
@@ -373,6 +380,23 @@ pre.draw{margin:8px 0 0;padding:8px;background:var(--sunk);border:1px solid var(
       devolve <code>None</code> mesmo existindo solução.</div>
     <div><b>máx nós</b> Freio do visualizador, não da teoria: ele para de gerar depois desse
       tanto para o navegador não travar. Bater no teto é sinal de que falta poda.</div>
+    <div><b>gerado × estado</b> Um <em>nó</em> é uma vez que a busca chegou num estado por
+      um caminho; o mesmo estado pode virar vários nós. O contador <b>gerados</b> conta nós,
+      <b>estados</b> conta <code>env()</code> distintos. A caixinha <em>só estados
+      distintos</em> mostra um nó por estado — é o tamanho real do espaço explorado.</div>
+    <div><b>expandido × inspecionado</b> Expandir é chamar <code>successors()</code>. O nó
+      objetivo sai da fronteira e é <em>inspecionado</em>, mas nunca expandido — a busca
+      devolve o caminho antes disso. O mesmo vale para quem bate no limite <code>m</code>.
+      Por isso <b>expandidos</b> costuma ser um a menos que o número de nós retirados.</div>
+    <div><b>o estado inicial pode entrar duas vezes</b> A poda <code>general</code> da
+      aigyminsper só registra em <code>vistos</code> os nós que ela <em>insere</em>, e a raiz
+      entra na fronteira por fora desse caminho. Se der para voltar ao estado inicial, ele
+      é admitido mais uma vez — daí 65 admissões num espaço de 64 estados.</div>
+    <div><b>poda e custo variável</b> A <code>general</code> descarta um estado já visto sem
+      comparar custos. Com <code>cost()</code> uniforme isso é inofensivo, mas com custos
+      diferentes ela pode jogar fora um caminho mais barato descoberto depois — o custo
+      uniforme e o A* deixam de garantir o ótimo. É o comportamento da biblioteca da
+      disciplina, reproduzido aqui de propósito.</div>
     <div><b>caixinha da árvore</b> Cada caixa é um nó, rotulada com o <code>env()</code> do
       estado. A borda azul marca o nó que está sendo expandido agora; a seta na aresta é o
       <code>operator</code> que gerou o filho.</div>
@@ -480,7 +504,12 @@ function aplicar(e){
     case "inicio":   zerar(); V.raiz = id; V.visiveis.add(id);
                      V.fronteira = [id]; V.status.set(id,"fronteira"); break;
     case "tira":     V.fronteira = V.fronteira.filter(x => x !== id);
-                     V.status.set(id,"expandido"); V.atual = id; V.exp++; break;
+                     V.status.set(id,"expandido"); V.atual = id; break;
+    /* expandir = gerar os sucessores. O nó objetivo sai da fronteira e é
+       inspecionado, mas nunca expandido; o que bate no limite de profundidade
+       também não. Por isso contamos aqui, e não no "tira". */
+    case "testa":    V.exp++; break;
+    case "limite":   V.exp--; V.status.set(id,"expandido"); break;
     case "objetivo": V.status.set(id,"objetivo"); V.atual = id; break;
     case "gera":     V.visiveis.add(id); V.status.set(id,"gerado"); break;
     case "insere":   V.fronteira.push(id); V.status.set(id,"fronteira"); break;
@@ -500,11 +529,39 @@ const chave = alg => alg === "custo_uniforme" ? "g" : alg === "gananciosa" ? "h"
 /* o caminho verde só aparece depois que a busca chega nele -- sem spoiler */
 const achou = () => !!(T && T.solucao && V.status.get(T.solucao.at(-1)) === "objetivo");
 
-function layout(){
-  const filhos = new Map();
-  for (const id of V.visiveis){
+let soDistintos = false;
+
+/* Duas leituras da mesma busca:
+   - completa: todo nó criado, inclusive as repetições que a poda descartou;
+   - distinta: um nó por env(), o primeiro que alcançou aquele estado. Cada nó
+     é religado ao representante do estado do seu pai, então continua sendo uma
+     árvore de verdade e o total passa a ser o tamanho do espaço de estados. */
+function vista(){
+  if (!soDistintos){
+    const paiDe = new Map();
+    for (const id of V.visiveis){
+      const p = T.nos[id].pai;
+      paiDe.set(id, (p !== null && V.visiveis.has(p)) ? p : null);
+    }
+    return {fica: V.visiveis, paiDe};
+  }
+  const rep = new Map();
+  for (const id of [...V.visiveis].sort((a, b) => a - b))
+    if (!rep.has(T.nos[id].env)) rep.set(T.nos[id].env, id);
+  const fica = new Set(rep.values()), paiDe = new Map();
+  for (const id of fica){
     const p = T.nos[id].pai;
-    if (p !== null && V.visiveis.has(p)){
+    paiDe.set(id, p === null ? null : (rep.get(T.nos[p].env) ?? null));
+  }
+  return {fica, paiDe};
+}
+const distintos = () => new Set([...V.visiveis].map(id => T.nos[id].env)).size;
+
+function layout(fica, paiDe){
+  const filhos = new Map();
+  for (const id of fica){
+    const p = paiDe.get(id);
+    if (p !== null && p !== undefined){
       if (!filhos.has(p)) filhos.set(p, []);
       filhos.get(p).push(id);
     }
@@ -543,15 +600,16 @@ function desenharArvore(){
     return;
   }
   mostrarVazio("");
-  if (V.visiveis.size > 1400){
+  const {fica, paiDe} = vista();
+  if (fica.size > 1400){
     svg.setAttribute("width", 680); svg.setAttribute("height", 44);
     svg.innerHTML = `<text x="14" y="26" font-family="IBM Plex Mono, monospace" font-size="13"
-      fill="var(--warn)">${V.visiveis.size} nós: grande demais para desenhar. Reduza "máx nós".</text>`;
+      fill="var(--warn)">${fica.size} nós: grande demais para desenhar. Reduza "máx nós".</text>`;
     return;
   }
-  const col = layout();
+  const col = layout(fica, paiDe);
   let maxLen = 4;
-  for (const id of V.visiveis) maxLen = Math.max(maxLen, T.nos[id].env.length);
+  for (const id of fica) maxLen = Math.max(maxLen, T.nos[id].env.length);
   const W = Math.min(150, Math.max(56, maxLen * 7.6 + 12)), H = 24, GX = 12, GY = 58, PAD = 20;
   const kk = chave(T.alg);
   const X = id => PAD + col.get(id) * (W + GX);
@@ -559,16 +617,16 @@ function desenharArvore(){
   const naSol = new Set(achou() ? T.solucao : []);
 
   let maxC = 0, maxP = 0;
-  for (const id of V.visiveis){
+  for (const id of fica){
     maxC = Math.max(maxC, col.get(id)); maxP = Math.max(maxP, T.nos[id].prof);
   }
 
   let arestas = "", caixas = "";
-  for (const id of V.visiveis){
-    const n = T.nos[id];
-    if (n.pai === null || !V.visiveis.has(n.pai)) continue;
-    const x1 = X(n.pai) + W/2, y1 = Y(n.pai) + H, x2 = X(id) + W/2, y2 = Y(id), my = (y1+y2)/2;
-    const sol = naSol.has(id) && naSol.has(n.pai), podado = V.status.get(id) === "podado";
+  for (const id of fica){
+    const n = T.nos[id], pai = paiDe.get(id);
+    if (pai === null || pai === undefined) continue;
+    const x1 = X(pai) + W/2, y1 = Y(pai) + H, x2 = X(id) + W/2, y2 = Y(id), my = (y1+y2)/2;
+    const sol = naSol.has(id) && naSol.has(pai), podado = V.status.get(id) === "podado";
     arestas += `<path d="M${x1} ${y1}V${my}H${x2}V${y2}" fill="none" stroke="${
       sol ? "var(--ok)" : podado ? "var(--rule)" : "var(--rule-2)"}" stroke-width="${sol?2.4:1.2}"${
       podado ? ' stroke-dasharray="3 3"' : ""}/>`;
@@ -582,7 +640,7 @@ function desenharArvore(){
     podado:   {f:"transparent",        s:"var(--rule-2)", w:1,   d:"3 3"},
     gerado:   {f:"transparent",        s:"var(--rule-2)", w:1,   d:""},
   };
-  for (const id of V.visiveis){
+  for (const id of fica){
     const n = T.nos[id], e = ESTILO[V.status.get(id) || "gerado"];
     const x = X(id), y = Y(id);
     const cabe = Math.floor((W - 12) / 7.6);
@@ -607,7 +665,7 @@ function desenharArvore(){
   svg.innerHTML = arestas + caixas;
   $("pct").textContent = Math.round(ZOOM * 100) + "%";
 
-  if (V.atual !== null && V.visiveis.has(V.atual))
+  if (V.atual !== null && fica.has(V.atual))
     seguirNo((X(V.atual) + W/2) * ZOOM, (Y(V.atual) + H/2) * ZOOM);
 }
 
@@ -726,6 +784,7 @@ function desenharBarra(){
     ? `<span class="pill${cls}">${ROTULO[e.t] || e.t}</span> ${esc(e.msg)}`
     : '<span class="pill">pronto</span> use ← → ou espaço';
   $("sGer").textContent = V.visiveis.size;
+  $("sDist").textContent = T ? distintos() : 0;
   $("sExp").textContent = V.exp;
   $("sFro").textContent = V.fronteira.length;
   $("sProf").textContent = V.atual !== null && T ? T.nos[V.atual].prof : 0;
@@ -791,7 +850,9 @@ async function rodar(){
     Herde de <code>HeuristicState</code> e implemente <code>h()</code>.</div>`);
   if (T.solucao) av.push(`<div class="aviso ok"><b>${T.info.classe}</b> —
     ${T.info.descricao}. Achou em ${T.solucao.length-1} ações, custo
-    ${T.nos[T.solucao.at(-1)].g}, expandindo ${T.passos.filter(p=>p.t==="tira").length} nós.</div>`);
+    ${T.nos[T.solucao.at(-1)].g}, expandindo ${
+      T.passos.filter(p=>p.t==="testa").length - T.passos.filter(p=>p.t==="limite").length
+    } nós de ${new Set(T.nos.map(n=>n.env)).size} estados distintos.</div>`);
   if (!T.erro && !T.solucao && !T.estouro && T.passos.length)
     av.push(`<div class="aviso erro">A fronteira esvaziou sem achar o objetivo.
     ${ALGS[T.alg].limitado ? "O limite <code>m</code> pode estar baixo demais." : ""}</div>`);
@@ -831,6 +892,7 @@ $("treewrap").addEventListener("wheel", ev => {      // ctrl/⌘ + roda = zoom
   ev.preventDefault();
   zoomar(ZOOM * (ev.deltaY < 0 ? 1.1 : 1/1.1));
 }, {passive:false});
+$("soDistintos").onchange = () => { soDistintos = $("soDistintos").checked; desenhar(); ajustar(); };
 $("bRodar").onclick = rodar;
 $("alg").onchange = () => { $("m").disabled = !ALGS[$("alg").value].limitado; rodar(); };
 $("poda").onchange = rodar;

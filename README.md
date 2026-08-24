@@ -90,16 +90,21 @@ Três decisões de modelagem que valem ser ditas:
 A `aigyminsper` recebe a política de poda como parâmetro, e **o padrão é `'without'`** — sem
 poda nenhuma. Nesse problema isso é a diferença entre resolver e não terminar:
 
-| algoritmo | `pruning='general'` | sem poda |
-|---|---:|---:|
-| Busca em largura | 156 nós | não termina em tempo útil |
-| Custo uniforme | 142 nós | idem |
-| Aprofundamento iterativo | 294 nós | idem |
-| A* | 78 nós | 134 nós |
-| Gananciosa | 19 nós | 19 nós |
-| Profundidade limitada | 19 nós | 19 nós |
+Nós **gerados** por cada busca, deixando todas terminarem:
 
-Todos chegam ao mesmo custo ótimo, 7. Por isso o `main()` chama:
+| algoritmo | `general` | `father-son` | `without` |
+|---|---:|---:|---:|
+| Busca em largura | **156** | 4026 | 4026 |
+| Custo uniforme | 142 | 1709 | 1709 |
+| Aprofundamento iterativo | 294 | 1053 | 1053 |
+| A* | 78 | 134 | 134 |
+| Gananciosa | 19 | 19 | 19 |
+| Profundidade limitada | 19 | 19 | 19 |
+
+Todas acham o mesmo caminho ótimo de custo 7 — a largura sem poda só faz **4026 nós de
+trabalho para visitar 64 estados**. Repare também que `father-son` não ajuda nada aqui: ela
+só descarta o filho cujo `env()` é igual ao do pai, e neste problema toda ação muda o estado,
+então a condição nunca dispara. Por isso o `main()` chama:
 
 ```python
 BuscaLargura().search(estado_inicial(), pruning='general')
@@ -108,6 +113,35 @@ BuscaLargura().search(estado_inicial(), pruning='general')
 A poda `general` descarta um sucessor cujo `env()` já apareceu antes — e é aí que o `env()`
 deixa de ser detalhe: se ele esquecer de incluir algum quarto, dois estados diferentes
 passam a ter a mesma assinatura e a busca descarta caminhos válidos.
+
+### Nó não é estado
+
+Os dois números não são a mesma coisa, e confundi-los é o erro de leitura mais fácil de
+cometer. Um **estado** é uma configuração do mundo; um **nó** é uma vez que a busca chegou
+nele por algum caminho. A largura com `general` fecha assim:
+
+```
+156  nós criados        (155 gerados por successors() + a raiz)
+ −91  podados           env() já visto, descartados na hora
+= 65  admitidos na fronteira
+ −62  retirados         (61 expandidos + 1 que era o objetivo)
+=  3  sobraram          A#0000, B#0000, D#0000
+```
+
+Três detalhes que valem entender:
+
+- **Os 3 que sobram são os outros estados objetivo.** O robô pode terminar em qualquer
+  quarto, então há quatro estados objetivo; a busca achou um e parou com os outros três na
+  fila.
+- **61 expandidos, não 62.** Expandir é chamar `successors()`. O nó objetivo sai da fronteira
+  e é *inspecionado*, mas a busca devolve o caminho antes de expandi-lo.
+- **65 admissões para 64 estados.** A poda `general` só registra em `vistos` os nós que ela
+  *insere*, e a raiz entra na fronteira por fora desse caminho — então o estado inicial pode
+  ser admitido uma segunda vez. Aqui isso acontece: `MoverDireita` e depois `MoverEsquerda`
+  voltam a `A#1111`. É um detalhe da biblioteca, não muda o resultado.
+
+A caixinha **só estados distintos**, no visualizador, colapsa essa diferença: ela mostra um
+nó por `env()` — os 4026 nós da largura sem poda viram os mesmos 64 estados.
 
 ---
 
@@ -169,6 +203,13 @@ execuções, e **`input()` não funciona** — código que peça entrada trava o
 - `ParallelSearch` e o módulo de CSP (`csp_algorithms`, `CspState`) **não foram portados**;
   importá-los quebra;
 - a equivalência com a biblioteca real é testada, não garantida.
+
+**A poda não compara custos.** A `general` descarta um estado já visto sem olhar por quanto
+se chegou nele. Com `cost()` uniforme, como neste aspirador, isso é inofensivo — o primeiro
+caminho encontrado já é o mais barato. Com custos variáveis, ela pode jogar fora um caminho
+melhor descoberto depois, e aí **o custo uniforme e o A\* deixam de garantir o ótimo**. É o
+comportamento da biblioteca da disciplina, reproduzido aqui de propósito: o visualizador
+mostra o que o seu código realmente faz, não o algoritmo do livro.
 
 **Só a biblioteca padrão.** `random`, `math`, `collections`, `itertools`, `json` e afins
 funcionam normalmente. `numpy`, `pandas` e companhia existiriam no Pyodide, mas a página não
